@@ -1,6 +1,7 @@
 from requests import post, get
 import time
 import base64
+
 def get_token(client_id, client_secret):
     auth_string = client_id + ":" + client_secret
     auth_bytes = auth_string.encode("utf-8")
@@ -141,35 +142,26 @@ def get_artist_name(token, artist_id):
     artist_name = json_result.get('name', 'Unknown Artist')
     return artist_name
 
-def get_all_tracks_by_artist(token, artist_id):
-    # Obtener el nombre del artista
-    artist_name = get_artist_name(token, artist_id)
+def get_all_tracks_by_artist(token, artist_id, artist_name=None):
+    if not artist_name:
+        artist_name = get_artist_name(token, artist_id)
     
-    # Obtener los álbumes del artista
     albums = get_artist_albums(token, artist_id)
     all_tracks = []
     
     for album in albums:
         album_id = album['id']
-        # Pasar el nombre del artista a get_album_tracks
+        album_name = album['name']  # Extrae el nombre del álbum
         tracks = get_album_tracks(token, album_id, artist_name=artist_name)
-        
         for track in tracks:
-            # Obtener más detalles del track, incluyendo popularidad (esto aumenta mas del 1000% el tiempo del método)
-            #track_id = track['id']
-            #track_details = get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=get_auth_header(token)).json()
-            
-            # Añadir el nombre del artista al track
-            #track_details['artist_name'] = artist_name
+            track['album_id'] = album_id  
+            track['album_name'] = album_name  # Añade el nombre del álbum a cada track
             track['artist_name'] = artist_name
-        
-            #all_tracks.append(track_details)
             all_tracks.append(track)
-        
+    
+    return all_tracks
 
-    # Ordenar por popularidad
-    all_tracks_sorted = sorted(all_tracks, key=lambda x: x.get('popularity', 0), reverse=True)
-    return all_tracks_sorted
+
 
 def get_playlist_tracks_with_artists(token, playlist_id, limit=100):
     url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"

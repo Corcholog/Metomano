@@ -90,7 +90,6 @@ def censurar_palabras_en_texto_original(letra, palabras_censuradas):
     return "\n".join(resultado), censuras_efectuadas
     '''
     
-
 def censurar_palabras_en_texto_primera_ocurrencia(letra, palabras_censuradas):
     resultado = []
     censuras_efectuadas = []  # Lista para registrar las palabras/frases censuradas en el orden de aparición
@@ -152,7 +151,6 @@ def censurar_palabras_en_texto_random(letra, palabras_censuradas):
             censuras_efectuadas.append(frase)
 
     return "\n".join(lineas), censuras_efectuadas
-
 
 # Función para eliminar las palabras clave que ya están incluidas en las frases nominales
 def eliminar_palabras_superpuestas(palabras_clave, frases_nominales):
