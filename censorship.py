@@ -24,12 +24,14 @@ I know I Mountain Dew it for ya (yes)
 That morning coffee, brewed it for ya (yes)
 One touch and I brand-newed it for ya (stupid)"""
 
-letra = """The next time that I caught my own reflection
-It was on it's way to meet you
-Thinking of excuses to postpone
-You never looked like yourself from the side
-But your profile could not hide
-The fact you knew I was approaching your throne"""
+letra = """Me quedo con vos, yo sigo de largo, voy a buscarte
+Qué noche mágica ciudad de Buenos Aires
+Se queman las horas, de esta manera nadie me espera
+Cómo me gusta verte caminar así
+Me quedo con vos, yo sigo de largo, voy a buscarte
+Me mata cómo te movés por todas partes
+Se queman las horas, de esta manera nadie me espera
+Cómo me gusta verte caminar así"""
 
 # Función para detectar palabras clave (verbos, sustantivos, adjetivos)
 def detectar_palabras_clave(doc):
@@ -48,6 +50,9 @@ def detectar_frases_nominales(doc):
     return frases_nominales
 
 def censurar_palabras_en_texto_original(letra, palabras_censuradas):
+    
+    return censurar_palabras_en_texto_primera_ocurrencia(letra, palabras_censuradas)
+    '''
     resultado = []
     censuras_efectuadas = []  # Lista para registrar las palabras/frases censuradas en el orden de aparición
 
@@ -83,7 +88,70 @@ def censurar_palabras_en_texto_original(letra, palabras_censuradas):
 
     # Unimos todas las líneas censuradas
     return "\n".join(resultado), censuras_efectuadas
+    '''
+    
 
+def censurar_palabras_en_texto_primera_ocurrencia(letra, palabras_censuradas):
+    resultado = []
+    censuras_efectuadas = []  # Lista para registrar las palabras/frases censuradas en el orden de aparición
+    palabras_censuradas_set = set()  # Para verificar las palabras ya censuradas
+
+    for linea in letra.split("\n"):
+        nueva_linea = []
+        palabras_linea = linea.split()
+
+        i = 0
+        while i < len(palabras_linea):
+            palabra_actual = palabras_linea[i]
+            censurada = False
+
+            for frase in palabras_censuradas:
+                frase_dividida = frase.split()
+
+                # Verificamos si la palabra actual coincide con el inicio de una frase nominal o palabra clave
+                if palabras_linea[i:i + len(frase_dividida)] == frase_dividida:
+                    if frase not in palabras_censuradas_set:  # Censuramos solo la primera ocurrencia
+                        nueva_linea.extend(["___"] * len(frase_dividida))
+                        censuras_efectuadas.extend(frase_dividida)
+                        palabras_censuradas_set.add(frase)
+                        censurada = True
+                        i += len(frase_dividida)
+                        break
+
+            if not censurada:
+                nueva_linea.append(palabra_actual)
+                i += 1
+
+        resultado.append(" ".join(nueva_linea))
+
+    return "\n".join(resultado), censuras_efectuadas
+
+def censurar_palabras_en_texto_random(letra, palabras_censuradas):
+    resultado = []
+    censuras_efectuadas = []
+    
+    for frase in palabras_censuradas:
+        # Contar todas las ocurrencias de la frase en el texto
+        ocurrencias = []
+        lineas = letra.split("\n")
+        for linea_idx, linea in enumerate(lineas):
+            palabras_linea = linea.split()
+            i = 0
+            while i < len(palabras_linea):
+                if palabras_linea[i:i + len(frase.split())] == frase.split():
+                    ocurrencias.append((linea_idx, i))
+                i += 1
+
+        if ocurrencias:
+            # Escoger una ocurrencia aleatoria para censurar
+            ocurrencia_random = random.choice(ocurrencias)
+            linea_idx, palabra_idx = ocurrencia_random
+            palabras_linea = lineas[linea_idx].split()
+            palabras_linea[palabra_idx:palabra_idx + len(frase.split())] = ["___"] * len(frase.split())
+            lineas[linea_idx] = " ".join(palabras_linea)
+            censuras_efectuadas.append(frase)
+
+    return "\n".join(lineas), censuras_efectuadas
 
 
 # Función para eliminar las palabras clave que ya están incluidas en las frases nominales
@@ -154,4 +222,3 @@ def censurar(letra, save=False, debug=False, percentage=0.5, LANG="EN"):
 #letra_censurada, censuras = censurar_y_guardar_en_archivo(letra)
 
 # Mostrar confirmación en la consola
-

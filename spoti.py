@@ -1,4 +1,5 @@
 from requests import post, get
+import time
 import base64
 def get_token(client_id, client_secret):
     auth_string = client_id + ":" + client_secret
@@ -63,14 +64,6 @@ def print_playlist_items(playlist_json):
         print(f"Available Markets: {', '.join(available_markets[:5])}...")  # Mostrar solo los primeros 5 mercados
         print("-" * 40)
 
-def get_artist_id(artist):
-    # debo obtener el ID del artista buscando el artista con web scraping...
-    return None
-
-def get_tracks(artist_id):
-    ### no hay metodo directo, debo obtener todos los tracks de todos los albums
-    return None
-
 def get_artist_albums(token, artist_id, limit=20, offset=0, sort = True):
     url = f"https://api.spotify.com/v1/artists/{artist_id}/albums"
     headers = get_auth_header(token)
@@ -113,7 +106,6 @@ def get_album_tracks(token, album_id, artist_name=None):
     # Añadimos el nombre del artista a cada pista, si está disponible
     for track in tracks:
         track['artist_name'] = artist_name
-    
     return tracks
 
 def get_artist_id(token, artist_name):
@@ -163,18 +155,20 @@ def get_all_tracks_by_artist(token, artist_id):
         tracks = get_album_tracks(token, album_id, artist_name=artist_name)
         
         for track in tracks:
-            # Obtener más detalles del track, incluyendo popularidad
-            track_id = track['id']
-            track_details = get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=get_auth_header(token)).json()
+            # Obtener más detalles del track, incluyendo popularidad (esto aumenta mas del 1000% el tiempo del método)
+            #track_id = track['id']
+            #track_details = get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=get_auth_header(token)).json()
             
             # Añadir el nombre del artista al track
-            track_details['artist_name'] = artist_name
-            
-            all_tracks.append(track_details)
+            #track_details['artist_name'] = artist_name
+            track['artist_name'] = artist_name
+        
+            #all_tracks.append(track_details)
+            all_tracks.append(track)
+        
 
     # Ordenar por popularidad
     all_tracks_sorted = sorted(all_tracks, key=lambda x: x.get('popularity', 0), reverse=True)
-    
     return all_tracks_sorted
 
 def get_playlist_tracks_with_artists(token, playlist_id, limit=100):
@@ -201,5 +195,4 @@ def get_playlist_tracks_with_artists(token, playlist_id, limit=100):
             'name': song_name,  # Aquí se usa 'name' en lugar de 'song_name'
             'artist_name': artists  # Mantener 'artist_name' para el artista
         })
-    
     return tracks
