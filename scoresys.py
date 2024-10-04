@@ -32,7 +32,9 @@ def get_score_from_questions(user_input, answers, score_add = 5) -> float:
     quantity = 0
     
     for i in range(0, len(answers)):
-        if user_input[i].lower() == answers[i].lower():
+        us_in = user_input[i].lower()
+        ans_in = answers[i].lower()
+        if (us_in == ans_in) or (quitar_acentos(us_in) == quitar_acentos(ans_in)):
             quantity+=1
             score += score_add
         else:
