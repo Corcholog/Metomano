@@ -176,7 +176,7 @@ def procesar_lineas_con_spacy(letra, LANG="EN"):
     return frases_nominales_totales, palabras_clave_totales
 
 # Función para censurar y guardar el resultado en un archivo
-def censurar(letra, save=False, debug=False, percentage=0.5, LANG="EN"):
+def censurar(letra, LANG, save=False, debug=False, percentage=0.5):
     # Procesamos el texto línea por línea
     frases_nominales, palabras_clave = procesar_lineas_con_spacy(letra, LANG)
     

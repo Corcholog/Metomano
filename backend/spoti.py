@@ -2,6 +2,8 @@ from requests import post, get
 import time
 import base64
 
+import requests
+
 def get_token(client_id, client_secret):
     auth_string = client_id + ":" + client_secret
     auth_bytes = auth_string.encode("utf-8")
@@ -109,7 +111,7 @@ def get_album_tracks(token, album_id, artist_name=None):
         track['artist_name'] = artist_name
     return tracks
 
-def get_artist_id(token, artist_name):
+def get_artist_id(token, artist_name, client_id, client_secret):
     url = "https://api.spotify.com/v1/search"
     headers = get_auth_header(token)
     params = {
@@ -119,6 +121,12 @@ def get_artist_id(token, artist_name):
     }
     
     result = get(url, headers=headers, params=params)
+    
+    # Si el token está expirado o no es válido, obtener uno nuevo
+    if result.status_code == 401:
+        token = get_token(client_id, client_secret)  # Genera un nuevo token
+        headers = {"Authorization": f"Bearer {token}"}
+        result = requests.get(url, headers=headers)
     
     result.raise_for_status()  # Lanza un error en caso de que la respuesta HTTP sea un error
     json_result = result.json()

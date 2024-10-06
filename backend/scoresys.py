@@ -42,5 +42,7 @@ def get_score_from_questions(user_input, answers, score_add = 5) -> float:
     return score, quantity
             
 def get_score(user_lyrics, user_answers, censorship, answers):
-    return get_score_from_words(user_lyrics, censorship) #+ get_score_from_questions(user_answers, answers)
+    return get_score_from_words(user_lyrics, censorship)[0] #+ get_score_from_questions(user_answers, answers)[0]
+
+    
         

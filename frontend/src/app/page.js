@@ -1,101 +1,204 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from 'react';
+import CensoredLyricsCard from './components/CensoredLyricsCard/CensoredLyricsCard';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [artist, setArtist] = useState('');
+  const [songs, setSongs] = useState([]);
+  const [censoredLyrics, setCensoredLyrics] = useState('');
+  const [censorship, setCensorship] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [songName, setSongName] = useState('');
+  const [userInputs, setUserInputs] = useState([]);
+  const [currentInput, setCurrentInput] = useState('');
+  const [showCensorship, setShowCensorship] = useState(false);
+  const [score, setScore] = useState(null);
+  const [results, setResults] = useState([]);
+  const [showEmbed, setShowEmbed] = useState(false);
+  const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState('');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setShowCensorship(false);
+    setScore(null);
+    setResults([]);
+    setSpotifyEmbedUrl('');
+
+    try {
+      const response = await fetch(`http://localhost:8000/songs?artist=${artist}&lang=ES`);
+      if (!response.ok) {
+        throw new Error('Error al obtener las canciones');
+      }
+
+      const data = await response.json();
+      setSongs(data.songs);
+
+      const songPoolResponse = await fetch('http://localhost:8000/song_pool', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ songs: data.songs, N: 5 }),
+      });
+
+      if (!songPoolResponse.ok) {
+        throw new Error('Error al filtrar las canciones');
+      }
+
+      const songPoolData = await songPoolResponse.json();
+      const filteredSongs = songPoolData.selected_songs;
+
+      const lyricsResponse = await fetch('http://localhost:8000/get_lyrics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ songs: filteredSongs }),
+      });
+
+      if (!lyricsResponse.ok) {
+        throw new Error('Error al obtener las letras censuradas');
+      }
+
+      const lyricsData = await lyricsResponse.json();
+      const firstSong = filteredSongs[0];
+      setCensoredLyrics(lyricsData[firstSong.name].censored_lyrics);
+      setCensorship(lyricsData[firstSong.name].censorship);
+      setSongName(firstSong.name);
+
+      const trackId = firstSong.external_urls.split('track/')[1];
+      setSpotifyEmbedUrl(`https://open.spotify.com/embed/track/${trackId}?utm_source=generator`);
+
+      setUserInputs([]);
+      setCurrentInput('');
+      setShowEmbed(false);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputSubmit = (e) => {
+    e.preventDefault();
+    setUserInputs([...userInputs, currentInput]);
+    setCurrentInput('');
+  };
+
+  const calculateScore = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/get_score', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_input: userInputs,
+          user_answers: userInputs,
+          censorship: censorship,
+          answers: censorship,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al calcular el puntaje');
+      }
+
+      const scoreData = await response.json();
+      setScore(scoreData.score);
+
+      const resultData = censorship.map((correctWord, index) => ({
+        userWord: userInputs[index] || '',
+        correctWord,
+        isCorrect: (userInputs[index] || '').toLowerCase() === correctWord.toLowerCase(),
+      }));
+      setResults(resultData);
+      setShowEmbed(true);
+      setShowCensorship(true);
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen p-8 pb-20 grid grid-cols-1 sm:grid-cols-2 gap-16 items-center justify-center font-[family-name:var(--font-geist-sans)]">
+      <main className="flex flex-col gap-8 items-center sm:items-start w-full max-w-sm mx-auto">
+        <h1 className="text-2xl font-bold text-center">Ingresa un artista para jugar</h1>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 items-center w-80">
+          <input
+            type="text"
+            value={artist}
+            onChange={(e) => setArtist(e.target.value)}
+            placeholder="Ingresa el nombre del artista"
+            className="border p-2 rounded text-black w-full"
+            required
+          />
+          <button type="submit" className="bg-green-600 text-white rounded px-4 py-2 w-full">
+            Buscar
+          </button>
+        </form>
+
+        {loading && <p>Buscando canciones...</p>}
+        {error && <p className="text-red-500">{error}</p>}
+
+        {censoredLyrics && (
+          <div className="w-80">
+            <CensoredLyricsCard song_name={songName} censoredLyrics={censoredLyrics} />
+            <form onSubmit={handleInputSubmit} className="mt-4">
+              <input
+                type="text"
+                value={currentInput}
+                onChange={(e) => setCurrentInput(e.target.value)}
+                placeholder="Ingresa la palabra censurada"
+                className="border p-2 rounded text-black w-full"
+              />
+              <button type="submit" className="bg-blue-600 text-white rounded px-4 py-2 w-full mt-2">
+                Ingresar
+              </button>
+            </form>
+            <button onClick={calculateScore} className="bg-green-600 text-white rounded px-4 py-2 w-full mt-4">
+              Enviar Respuestas
+            </button>
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      <aside className="flex flex-col gap-4 w-full">
+        {showEmbed && (
+          <iframe
+            style={{ borderRadius: '12px' }}
+            src={spotifyEmbedUrl}
+            width="100%"
+            height="352"
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+          ></iframe>
+        )}
+        {score !== null && (
+          <>
+            <p className="text-xl font-bold">Tu puntaje: {score}</p>
+            <ul className="mt-4 flex flex-col gap-2">
+              {results.map((result, index) => (
+                <li key={index} className="flex items-center gap-4">
+                  <span>{result.userWord}</span>
+                  <span>→ {result.correctWord}</span>
+                  {result.isCorrect ? (
+                    <span className="text-green-600 font-bold">✓</span>
+                  ) : (
+                    <span className="text-red-600 font-bold">✗</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </aside>
     </div>
   );
 }

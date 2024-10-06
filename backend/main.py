@@ -1,11 +1,21 @@
-from fastapi import FastAPI, HTTPException
+import logging
+import random
+from fastapi import FastAPI, HTTPException, Query
 import psycopg2
 import os
 from dotenv import load_dotenv
 from lyricsgenius import Genius
 import spoti as sp
-import lyrics as ly  # Supongamos que tienes una función para obtener letras
+import lyrics as ly 
+import censorship as cs
+import scoresys as sc
 import time
+from fastapi.middleware.cors import CORSMiddleware
+from psycopg2.extras import DictCursor
+from models.models import *
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -22,6 +32,14 @@ client_secret = os.getenv("CLIENT_SECRET")
 token = sp.get_token(client_id, client_secret)
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite todas las orígenes
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Conexión a PostgreSQL
 try:
@@ -64,18 +82,89 @@ async def update_all_lyrics():
     cursor.close()
     return {"updated_tracks": updated_tracks, "message": "Actualización de letras completada"}
 
-@app.get("/songs/{artist_id}/{lang}")
-async def get_songs(artist_id: str, lang: str):
-    start_time = time.time()
-    cursor = conn.cursor()
+@app.post("/song_pool")
+async def song_pool(request: SongPoolRequest):
+    # Variable booleana para decidir si se mezclan las canciones
+    shuffle_songs = True
+    
+    # esto deberia hacerlo con una query
+    # Filtra las canciones para asegurar que tengan letras
+    songs_with_lyrics = [song for song in request.songs if song.lyrics]
+    N = request.N
 
+    if shuffle_songs:
+        random.shuffle(songs_with_lyrics)
+    
+    # Verifica si N es mayor que la cantidad de canciones con letras disponibles
+    if N > len(songs_with_lyrics):
+        selected_songs = songs_with_lyrics
+    else:
+        # Selecciona las primeras N canciones que tengan letras
+        selected_songs = songs_with_lyrics[:N]
+    
+
+    
+    return {"selected_songs": selected_songs}
+
+@app.post("/get_score")
+async def get_score(request: ScoreRequest):
+    total_score = sc.get_score(request.user_input, request.user_answers, request.censorship, request.answers)
+    return {"score": total_score}
+
+@app.post("/get_lyrics")
+async def get_lyrics(request: LyricsRequest):
+    start_time = time.time()
+    songs = request.songs
+    result_map = {}
+
+    for song in songs:
+        lyrics = song.lyrics  # Usa la notación de punto para acceder a los atributos
+        song_name = song.name  # Usa la notación de punto para acceder a los atributos
+
+        if not lyrics:
+            continue
+        
+        sections = ly.dividir_por_secciones(lyrics)
+        idx = random.randint(0, len(sections) - 1)
+        chosen_section = sections[idx]
+        
+        # Reintentar hasta que se obtenga una sección con más de dos líneas
+        while len(chosen_section.split("\n")) <= 2:
+            idx = random.randint(0, len(sections) - 1)
+            chosen_section = sections[idx]
+        
+        censored_lyrics, censorship = cs.censurar(chosen_section, LANG=song.lang, percentage=0.5)
+        
+        # Agregar al mapa
+        result_map[song_name] = {
+            "censored_lyrics": censored_lyrics,
+            "censorship": censorship
+        }
+    elapsed_time = time.time() - start_time
+    print(f"La censura tardó {elapsed_time:.2f} segundos")
+    return result_map
+
+
+@app.post("/get_questions")
+async def get_questions(request: QuestionRequest):
+    
+    return
+
+@app.get("/songs")
+async def get_songs(lang: str = Query(..., description="El idioma"),
+                    artist: str = Query(..., description="El nombre del artista", min_length=1) ):
+    start_time = time.time()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    
     try:
+        artist_id = sp.get_artist_id(token, artist, client_id, client_secret)
         # Verifica si el artista está en la base de datos; si no, lo obtiene de Spotify
         artist_name_query = "SELECT name FROM Artist WHERE id = %s"
         cursor.execute(artist_name_query, (artist_id,))
         artist_name = cursor.fetchone()
-
+        new_artist = False
         if artist_name is None:
+            new_artist = True
             artist_name = sp.get_artist_name(token, artist_id)
             # Inserta el artista en la base de datos
             cursor.execute("INSERT INTO Artist (id, name) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING", (artist_id, artist_name))
@@ -156,11 +245,12 @@ async def get_songs(artist_id: str, lang: str):
             tracks = cursor.fetchall()
 
         # Obtiene las letras faltantes y actualiza la base de datos
+       
         updated_tracks = []
         for track in tracks:
             track_id, track_name, lyrics, track_lang, external_urls = track
 
-            if lyrics is None or lyrics == '':
+            if new_artist and ((lyrics is None) or (lyrics == '')):
                 lyrics = ly.get_lyrics(track_name, artist_name, genius)
 
                 if lyrics:
@@ -184,6 +274,6 @@ async def get_songs(artist_id: str, lang: str):
         elapsed_time = time.time() - start_time
         print(f"La consulta tardó {elapsed_time:.2f} segundos")
         return {"songs": updated_tracks}
-    
+
     finally:
         cursor.close()
