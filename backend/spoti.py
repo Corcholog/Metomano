@@ -84,6 +84,22 @@ def get_artist_albums(token, artist_id, limit=20, offset=0, sort = True):
     sorted_albums = sorted(items, key=lambda album: album['release_date'], reverse=True)
     return sorted_albums if sort else items
 
+def get_track_popularity(track_id, token):
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    
+    url = f"https://api.spotify.com/v1/tracks/{track_id}"
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        track_data = response.json()
+        return track_data.get('popularity', None)
+    else:
+        print(f"Error fetching track popularity: {response.status_code}")
+        return None
+
+
 def get_top_tracks(token, artist_id):
     url = f"https://api.spotify.com/v1/artists/{artist_id}/top-tracks"
     headers = get_auth_header(token)

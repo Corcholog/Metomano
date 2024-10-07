@@ -42,7 +42,7 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ songs: data.songs, N: 5 }),
+        body: JSON.stringify({ songs: data.songs, N: 10 }),
       });
 
       if (!songPoolResponse.ok) {
@@ -85,36 +85,49 @@ export default function Home() {
 
   const handleInputSubmit = (e) => {
     e.preventDefault();
-    setUserInputs([...userInputs, currentInput]);
+    const updatedUserInputs = [...userInputs, currentInput];
+    setUserInputs(updatedUserInputs);
     setCurrentInput('');
+    
+    if (updatedUserInputs.length >= censorship.length) {
+      calculateScore(updatedUserInputs);  // Pasa `updatedUserInputs` directamente si alcanzó el límite
+    }
   };
-
-  const calculateScore = async () => {
+  
+  
+  const calculateScore = async (userInputsList = [...userInputs]) => {
     try {
+      // Rellenar userInputsList con cadenas vacías hasta que tenga la longitud de censorship
+      const paddedUserInputs = [...userInputsList];
+      while (paddedUserInputs.length < censorship.length) {
+        paddedUserInputs.push("");
+      }
+  
       const response = await fetch('http://localhost:8000/get_score', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_input: userInputs,
-          user_answers: userInputs,
+          user_input: paddedUserInputs,
+          user_answers: paddedUserInputs,
           censorship: censorship,
           answers: censorship,
         }),
       });
-
+  
       if (!response.ok) {
         throw new Error('Error al calcular el puntaje');
       }
-
+  
       const scoreData = await response.json();
       setScore(scoreData.score);
-
+  
+      // Mapear las respuestas del usuario junto con las correctas
       const resultData = censorship.map((correctWord, index) => ({
-        userWord: userInputs[index] || '',
+        userWord: paddedUserInputs[index] || '',
         correctWord,
-        isCorrect: (userInputs[index] || '').toLowerCase() === correctWord.toLowerCase(),
+        isCorrect: (paddedUserInputs[index] || '').toLowerCase() === correctWord.toLowerCase(),
       }));
       setResults(resultData);
       setShowEmbed(true);
@@ -123,6 +136,8 @@ export default function Home() {
       setError(error.message);
     }
   };
+  
+  
 
   return (
     <div className="min-h-screen p-8 pb-20 grid grid-cols-1 sm:grid-cols-2 gap-16 items-center justify-center font-[family-name:var(--font-geist-sans)]">
@@ -157,13 +172,14 @@ export default function Home() {
                 placeholder="Ingresa la palabra censurada"
                 className="border p-2 rounded text-black w-full"
               />
-              <button type="submit" className="bg-blue-600 text-white rounded px-4 py-2 w-full mt-2">
+              <button type="submit" className="bg-green-600 text-white rounded px-4 py-2 w-full mt-2">
                 Ingresar
               </button>
             </form>
-            <button onClick={calculateScore} className="bg-green-600 text-white rounded px-4 py-2 w-full mt-4">
-              Enviar Respuestas
-            </button>
+            <button onClick={() => calculateScore()} className="bg-green-600 text-white rounded px-4 py-2 w-full mt-4">
+  Enviar Respuestas
+</button>
+
           </div>
         )}
       </main>
@@ -185,9 +201,9 @@ export default function Home() {
             <p className="text-xl font-bold">Tu puntaje: {score}</p>
             <ul className="mt-4 flex flex-col gap-2">
               {results.map((result, index) => (
-                <li key={index} className="flex items-center gap-4">
+                <li key={index} className="flex items-center gap-2">
                   <span>{result.userWord}</span>
-                  <span>→ {result.correctWord}</span>
+                  <span> →  {result.correctWord}</span>
                   {result.isCorrect ? (
                     <span className="text-green-600 font-bold">✓</span>
                   ) : (
